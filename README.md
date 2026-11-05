@@ -116,18 +116,17 @@ Onbekende verbruiksvelden blijven onbekend; er worden geen eenheden gegokt.
 | Verbruikte / resterende sms'jes | `usage` |
 | Kosten buiten de bundel | `usage` |
 
-Elke sensor biedt de volledige ruwe gegevenssectie ook aan via het attribuut
-`raw`. Dit helpt bij foutonderzoek en bij het maken van templatesensoren
-voor velden die nog niet aan een sensor zijn gekoppeld.
+Sensoren publiceren alleen hun gekoppelde meetwaarde; het oude attribuut
+`raw` is verwijderd om accountgegevens en tokens buiten sensorattributen te houden.
 
 ## Vernieuwen van gegevens
 
 De integratie haalt elke 5 uur gegevens op. Simyo stuurt wijzigingen niet
 rechtstreeks naar de integratie.
 
-## Diagnose van de oude app-aanmelding
+## Diagnose van de app-aanmelding
 
-`python tools/probe_login.py` onderzoekt de oudere rechtstreekse
+`python tools/probe_login.py` onderzoekt de rechtstreekse
 app-aanmelding en toont de antwoordstructuur met afgeschermde waarden.
 Dit hulpmiddel voert de sms-verificatie niet uit. Gebruik
 `tools/verify_2fa.py` om de huidige aanmelding van deze fork te testen.
