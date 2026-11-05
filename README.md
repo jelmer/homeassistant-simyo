@@ -44,11 +44,11 @@ naar de app-API gestuurd.
 2. Een antwoord met `user.mfaStatus == PENDING_VERIFICATION` opent een apart
    formulier voor de verificatiecode. Het beperkte sessietoken geeft nog
    geen toegang tot de verbruiksgegevens.
-3. `POST /api/post?endpoint=securityVerifyOtp` met `rememberMe: false` en
+3. `POST /api/post?endpoint=securityVerifyOtp` met `rememberMe: true` en
    `token: <zescijferige code>`, met **dezelfde eigen cookieopslag voor de websitesessie**.
 4. Het bevestigde token komt uit `result.token`. De client roept
-   `POST /auth/update-token` aan met dat token en `rememberMe: false`, net
-   als de website, om de websitesessie op de server bij te werken.
+   `POST /auth/update-token` aan met dat token en `rememberMe: true` om de
+   websitesessie op de server bij te werken en de aanmelding te onthouden.
 5. Gegevens worden opgehaald via `GET /api/get?endpoint=prepaidOverview` en
    `GET /api/get?endpoint=getAggregated`.
 
@@ -62,8 +62,13 @@ De eerste aanmelding en het aanvragen van de code blijven binnen dezelfde
 configuratieprocedure, ook bij het opnieuw invoeren van een onjuiste code.
 Een verlopen verificatie vereist een nieuwe aanmelding. Verzoeklimieten
 worden gemeld zonder automatisch nieuwe codes te versturen. De integratie
-markeert het apparaat niet als vertrouwd en schakelt de accountbeveiliging
-niet uit.
+vraagt Simyo met `rememberMe: true` om de aanmelding te onthouden.
+Tweestapsverificatie blijft ingeschakeld op het account.
+
+Vanaf versie 0.2.3 wordt de onthoudfunctie aangevraagd bij een nieuwe
+aanmelding met verificatiecode. Een verlopen sessie wordt hierdoor niet
+opnieuw geldig: meld na installatie van de update nog eenmaal aan.
+Simyo bepaalt de geldigheidsduur; een sessie van maanden is niet gegarandeerd.
 
 Home Assistant hergebruikt de opgeslagen sessie na een herstart. Als Simyo
 de sessie laat verlopen en opnieuw om tweestapsverificatie vraagt, moet je

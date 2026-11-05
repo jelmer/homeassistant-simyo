@@ -83,11 +83,11 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
             [
                 call(
                     "/api/post?endpoint=securityVerifyOtp",
-                    {"rememberMe": False, "token": "987654"},
+                    {"rememberMe": True, "token": "987654"},
                 ),
                 call(
                     "/auth/update-token",
-                    {"rememberMe": False, "token": "verified-secret"},
+                    {"rememberMe": True, "token": "verified-secret"},
                 ),
             ]
         )
@@ -289,7 +289,7 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         async def update_token(request):
             self.assertEqual(request.cookies.get("test-session"), "pending-cookie")
             self.assertEqual(
-                await request.json(), {"token": "verified", "rememberMe": False}
+                await request.json(), {"token": "verified", "rememberMe": True}
             )
             response = web.Response(status=204)
             response.set_cookie("__Host-sessionKey", "completed-cookie")
@@ -333,7 +333,7 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
                 await restored.fetch_all()
                 restored.login.assert_not_awaited()
             self.assertEqual(client.session_token, "verified")
-            self.assertEqual(seen, [{"rememberMe": False, "token": "987654"}])
+            self.assertEqual(seen, [{"rememberMe": True, "token": "987654"}])
         finally:
             await runner.cleanup()
 

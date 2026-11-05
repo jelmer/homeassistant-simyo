@@ -235,7 +235,7 @@ class SimyoClient:
         data = await self._web_post(
             "/api/post?endpoint=securityVerifyOtp",
             {
-                "rememberMe": False,
+                "rememberMe": True,
                 "token": code,
             },
         )
@@ -253,7 +253,7 @@ class SimyoClient:
         # update __Host-sessionKey, and its token is not an app API credential.
         try:
             await self._web_post(
-                "/auth/update-token", {"token": token, "rememberMe": False}
+                "/auth/update-token", {"token": token, "rememberMe": True}
             )
         except (SimyoApiError, SimyoAuthError, SimyoRateLimited):
             self._reset_challenge()
