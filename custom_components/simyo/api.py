@@ -68,6 +68,7 @@ class SimyoClient:
         device_id: str | None = None,
         session_token: str | None = None,
         web_session: dict[str, str] | None = None,
+        auto_reauth_blocked: bool = False,
     ) -> None:
         self._session = session
         self._phone_number = phone_number
@@ -75,6 +76,8 @@ class SimyoClient:
         self._device_id = device_id or str(uuid4())
         self._session_token = session_token
         self._pending_mfa = False
+        self._auto_reauth_blocked = auto_reauth_blocked
+        self._automatic_login_attempted = False
         self._auth_cookies = aiohttp.CookieJar()
         if web_session:
             self._auth_cookies.update_cookies(
@@ -95,6 +98,11 @@ class SimyoClient:
     def session_token(self) -> str | None:
         """Only a completed session may be persisted by Home Assistant."""
         return self._session_token
+
+    @property
+    def auto_reauth_blocked(self) -> bool:
+        """Persist failed recovery so restarts cannot repeatedly request an OTP."""
+        return self._auto_reauth_blocked
 
     @property
     def web_session(self) -> dict[str, str]:
@@ -195,15 +203,22 @@ class SimyoClient:
             raise SimyoAuthError("Authentication rejected")
         return data
 
-    def _reset_challenge(self) -> None:
+    def _reset_challenge(self, *, preserve_device: bool = False) -> None:
         self._pending_mfa = False
-        self._auth_cookies.clear()
+        if preserve_device:
+            self._auth_cookies.clear(lambda cookie: cookie.key != "mfa-uuid")
+        else:
+            self._auth_cookies.clear()
         self._website_ready = False
+
+    def _invalidate_data_session(self) -> None:
+        self._session_token = None
+        self._reset_challenge(preserve_device=True)
 
     async def login(self) -> None:
         """Begin website login; never promote a pending token to a data token."""
         self._session_token = None
-        self._reset_challenge()
+        self._reset_challenge(preserve_device=True)
         data = await self._web_post(
             "/auth/login",
             {
@@ -305,8 +320,7 @@ class SimyoClient:
             ):
                 status = response.status
                 if status in (401, 403) or 300 <= status < 400:
-                    self._session_token = None
-                    self._reset_challenge()
+                    self._invalidate_data_session()
                     raise SimyoDataAuthError(endpoint, status)
                 if status >= 400:
                     raise SimyoApiError(f"{endpoint}_http_error", status=status)
@@ -325,8 +339,7 @@ class SimyoClient:
                 "caller:badSession",
                 "caller:missingSessionToken",
             ):
-                self._session_token = None
-                self._reset_challenge()
+                self._invalidate_data_session()
                 raise SimyoDataAuthError(
                     endpoint, error_status if isinstance(error_status, int) else None
                 )
@@ -345,4 +358,28 @@ class SimyoClient:
         return await self._get("getAggregated")
 
     async def fetch_all(self) -> dict[str, Any]:
+        try:
+            return await self._fetch_all_once()
+        except SimyoAuthError:
+            remembered_device = self._auth_cookies.filter_cookies(URL(WEB_BASE)).get(
+                "mfa-uuid"
+            )
+            if (
+                self._pending_mfa
+                or self._auto_reauth_blocked
+                or self._automatic_login_attempted
+                or not remembered_device
+            ):
+                raise
+        # Only recover with an already remembered device. Login may still require
+        # MFA; in that case stop and let HA request user interaction, never loop.
+        self._automatic_login_attempted = True
+        self._auto_reauth_blocked = True
+        await self.login()
+        data = await self._fetch_all_once()
+        self._auto_reauth_blocked = False
+        self._automatic_login_attempted = False
+        return data
+
+    async def _fetch_all_once(self) -> dict[str, Any]:
         return {"balance": await self.get_balance(), "usage": await self.get_usage()}

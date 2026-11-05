@@ -38,6 +38,120 @@ class Response:
 
 
 class ClientTests(unittest.IsolatedAsyncioTestCase):
+    async def test_remembered_device_recovers_expired_session_once(self):
+        client = self.client()
+        client._auth_cookies.update_cookies(
+            {"mfa-uuid": "fake-device"}, response_url=api.URL(api.WEB_BASE)
+        )
+        client._fetch_all_once = AsyncMock(
+            side_effect=[
+                api.SimyoDataAuthError("prepaidOverview", 401),
+                {"balance": 7.5},
+            ]
+        )
+        client.login = AsyncMock()
+        self.assertEqual(await client.fetch_all(), {"balance": 7.5})
+        client.login.assert_awaited_once()
+        self.assertFalse(client.auto_reauth_blocked)
+
+    async def test_no_remembered_device_does_not_automatically_login(self):
+        client = self.client()
+        client._fetch_all_once = AsyncMock(
+            side_effect=api.SimyoDataAuthError("prepaidOverview", 401)
+        )
+        client.login = AsyncMock()
+        with self.assertRaises(api.SimyoAuthError):
+            await client.fetch_all()
+        client.login.assert_not_awaited()
+
+    async def test_recovery_requiring_mfa_is_blocked_across_restarts(self):
+        client = self.client()
+        client._auth_cookies.update_cookies(
+            {"mfa-uuid": "fake-device"}, response_url=api.URL(api.WEB_BASE)
+        )
+        client._fetch_all_once = AsyncMock(
+            side_effect=api.SimyoDataAuthError("prepaidOverview", 401)
+        )
+        client._web_post = AsyncMock(
+            return_value={"user": {"mfaStatus": "PENDING_VERIFICATION"}}
+        )
+        with self.assertRaises(api.SimyoMfaRequired):
+            await client.fetch_all()
+        self.assertTrue(client.auto_reauth_blocked)
+        self.assertEqual(client.web_session, {})
+        self.assertIsNone(client.session_token)
+        restored = api.SimyoClient(
+            Mock(),
+            "0600000000",
+            "fake",
+            web_session={"mfa-uuid": "fake-device"},
+            auto_reauth_blocked=True,
+        )
+        restored.login = AsyncMock()
+        with self.assertRaises(api.SimyoAuthError):
+            await restored.fetch_all()
+        restored.login.assert_not_awaited()
+
+    async def test_rejected_recovery_does_not_loop(self):
+        client = self.client()
+        client._auth_cookies.update_cookies(
+            {"mfa-uuid": "fake-device"}, response_url=api.URL(api.WEB_BASE)
+        )
+        client._fetch_all_once = AsyncMock(
+            side_effect=api.SimyoDataAuthError("prepaidOverview", 401)
+        )
+        client.login = AsyncMock()
+        for _ in range(2):
+            with self.assertRaises(api.SimyoAuthError):
+                await client.fetch_all()
+        client.login.assert_awaited_once()
+        self.assertTrue(client.auto_reauth_blocked)
+
+    async def test_transport_error_during_recovery_does_not_repeat_login(self):
+        client = self.client()
+        client._auth_cookies.update_cookies(
+            {"mfa-uuid": "fake-device"}, response_url=api.URL(api.WEB_BASE)
+        )
+        client._fetch_all_once = AsyncMock(
+            side_effect=api.SimyoDataAuthError("prepaidOverview", 401)
+        )
+        client.login = AsyncMock(side_effect=api.SimyoApiError("login_transport_error"))
+        with self.assertRaises(api.SimyoApiError):
+            await client.fetch_all()
+        with self.assertRaises(api.SimyoAuthError):
+            await client.fetch_all()
+        client.login.assert_awaited_once()
+
+    async def test_login_retains_only_remembered_device_cookie(self):
+        client = self.client()
+        client._auth_cookies.update_cookies(
+            {
+                "mfa-uuid": "fake-device",
+                "__Host-sessionKey": "expired",
+                "AWSALB": "stale",
+            },
+            response_url=api.URL(api.WEB_BASE),
+        )
+        client._web_post = AsyncMock(
+            return_value={"user": {"sessionToken": "fresh", "mfaStatus": "VERIFIED"}}
+        )
+        await client.login()
+        self.assertEqual(client.web_session, {"mfa-uuid": "fake-device"})
+
+    async def test_data_auth_failure_retains_remembered_device(self):
+        client, _, manager = await self.web_response(Response(401))
+        client._website_ready = True
+        client._auth_cookies.update_cookies(
+            {"mfa-uuid": "fake-device", "__Host-sessionKey": "expired"},
+            response_url=api.URL(api.WEB_BASE),
+        )
+        with (
+            patch.object(api.aiohttp, "ClientSession", return_value=manager),
+            self.assertRaises(api.SimyoDataAuthError),
+        ):
+            await client.get_balance()
+        self.assertEqual(client.web_session, {"mfa-uuid": "fake-device"})
+
     def client(self, token=None):
         return api.SimyoClient(
             Mock(), "0698765478", "fake-password", "stable-device", token

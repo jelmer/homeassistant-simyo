@@ -21,6 +21,7 @@ from .api import (
     SimyoRateLimited,
 )
 from .const import (
+    CONF_AUTO_REAUTH_BLOCKED,
     CONF_DEVICE_ID,
     CONF_PHONE_NUMBER,
     CONF_SESSION_TOKEN,
@@ -96,6 +97,7 @@ class SimyoConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_DEVICE_ID: self._device_id,
             CONF_SESSION_TOKEN: self._client.session_token,
             CONF_WEB_SESSION: self._client.web_session,
+            CONF_AUTO_REAUTH_BLOCKED: False,
         }
         self._pending_data = None
         self._client = None

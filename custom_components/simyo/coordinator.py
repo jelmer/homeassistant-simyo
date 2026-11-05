@@ -11,7 +11,13 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import SimyoApiError, SimyoAuthError, SimyoClient, SimyoRateLimited
-from .const import CONF_SESSION_TOKEN, CONF_WEB_SESSION, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CONF_AUTO_REAUTH_BLOCKED,
+    CONF_SESSION_TOKEN,
+    CONF_WEB_SESSION,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,3 +59,14 @@ class SimyoCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise UpdateFailed(str(err)) from err
         except SimyoRateLimited as err:
             raise UpdateFailed(str(err)) from err
+        finally:
+            if self.client.auto_reauth_blocked != bool(
+                self.entry.data.get(CONF_AUTO_REAUTH_BLOCKED)
+            ):
+                self.hass.config_entries.async_update_entry(
+                    self.entry,
+                    data={
+                        **self.entry.data,
+                        CONF_AUTO_REAUTH_BLOCKED: self.client.auto_reauth_blocked,
+                    },
+                )

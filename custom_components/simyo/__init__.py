@@ -7,11 +7,11 @@ from uuid import uuid4
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import SimyoApiError, SimyoAuthError, SimyoClient, SimyoRateLimited
+from .api import SimyoClient
 from .const import (
+    CONF_AUTO_REAUTH_BLOCKED,
     CONF_DEVICE_ID,
     CONF_PHONE_NUMBER,
     CONF_SESSION_TOKEN,
@@ -37,17 +37,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.data[CONF_DEVICE_ID],
         entry.data.get(CONF_SESSION_TOKEN),
         entry.data.get(CONF_WEB_SESSION),
+        auto_reauth_blocked=bool(entry.data.get(CONF_AUTO_REAUTH_BLOCKED)),
     )
-    try:
-        if not client.session_token:
-            await client.login()
-    except SimyoAuthError as err:
-        raise ConfigEntryAuthFailed(str(err)) from err
-    except SimyoApiError as err:
-        raise ConfigEntryNotReady(str(err)) from err
-    except SimyoRateLimited as err:
-        raise ConfigEntryNotReady(str(err)) from err
-
     coordinator = SimyoCoordinator(hass, client, entry)
     await coordinator.async_config_entry_first_refresh()
 

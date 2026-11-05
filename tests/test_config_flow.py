@@ -151,6 +151,7 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["data"]["session_token"], "verified-session")
         self.assertEqual(result["data"]["password"], "new-password")
         self.assertEqual(result["data"]["device_id"], "saved-device")
+        self.assertFalse(result["data"]["auto_reauth_blocked"])
         self.assertNotIn("verification_code", result["data"])
 
     async def test_non_mfa_login_still_completes(self):

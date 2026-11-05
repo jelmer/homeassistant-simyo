@@ -9,6 +9,7 @@ CONF_DEVICE_ID = "device_id"
 CONF_SESSION_TOKEN = "session_token"
 CONF_WEB_SESSION = "web_session"
 CONF_VERIFICATION_CODE = "verification_code"
+CONF_AUTO_REAUTH_BLOCKED = "auto_reauth_blocked"
 
 DEFAULT_SCAN_INTERVAL = timedelta(hours=5)
 

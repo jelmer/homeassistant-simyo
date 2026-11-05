@@ -76,6 +76,21 @@ opnieuw je wachtwoord en een code invoeren. De formulieren zijn beschikbaar
 in het Nederlands en Engels. Logboeken bevatten alleen vaste foutcategorieën
 en HTTP-statuscodes, nooit antwoordinhoud of authenticatiegegevens.
 
+Vanaf versie 0.2.4 blijft de `mfa-uuid`-cookie voor het onthouden apparaat
+behouden wanneer de gegevenssessie verloopt. Alleen als die cookie aanwezig
+is, probeert de integratie eenmaal automatisch opnieuw aan te melden met de
+opgeslagen inloggegevens en vervolgens opnieuw gegevens op te halen.
+Bij succes worden de nieuwe sessiegegevens opgeslagen.
+
+Vraagt Simyo toch weer om tweestapsverificatie, of mislukt deze herstelpoging,
+dan wordt automatisch aanmelden geblokkeerd tot een succesvolle handmatige
+heraanmelding. Die blokkering blijft ook na herladen en herstarten bewaard.
+Hierdoor kunnen herhaalde pogingen niet steeds nieuwe codes aanvragen. De
+eerste automatische aanmeldpoging kan wel een code veroorzaken als Simyo het
+apparaat niet meer vertrouwt. Zonder apparaatcookie is er geen automatische
+aanmeldpoging. Accountbeveiliging wordt niet uitgeschakeld en de geldigheid
+van een Simyo-sessie wordt niet kunstmatig verlengd.
+
 Het oorspronkelijke hulpmiddel voor rechtstreeks aanmelden bij de app-API
 blijft beschikbaar voor diagnose. De integratie combineert die app-API niet
 meer met de authenticatie van de website.

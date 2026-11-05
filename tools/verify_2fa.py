@@ -1,7 +1,7 @@
 """Interactive live check of this fork; never prints or saves auth values.
 
 Requires aiohttp. Run from an interactive terminal; credentials/code are hidden.
-No account settings are changed and the device is not marked as trusted.
+No account settings are changed. MFA requests use Simyo's remember-device option.
 """
 
 import asyncio
