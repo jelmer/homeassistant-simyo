@@ -1,6 +1,6 @@
 # Simyo-integratie voor Home Assistant
 
-Een aangepaste Home Assistant-integratie die de website-API van
+Een aangepaste Home Assistant-integratie die de app-API van
 [Mijn Simyo](https://mijn.simyo.nl/) periodiek uitleest en prepaidbeltegoed en
 beschikbare verbruiksgegevens als sensoren beschikbaar maakt.
 
@@ -32,108 +32,71 @@ correct aan een sensor zijn gekoppeld.
 
 ![Simyo-apparaat en beltegoedsensor in Home Assistant](images/simyo-home-assistant-sensors.png)
 
-## Aanmelden en tweestapsverificatie
+## App-route vanaf 0.3.0
 
-Deze fork implementeert de aanmelding en verificatie met een eenmalige code
-(OTP) van de Mijn Simyo-website, zoals onderzocht via de ontwikkelaarstools
-van de browser op 30 oktober 2026. Aanmelden, codeverificatie en het ophalen
-van gegevens gebruiken dezelfde websitesessie. Websitetokens worden niet
-naar de app-API gestuurd.
+De integratie gebruikt nu de Android-app-API, op basis van statisch onderzoek
+van Mijn Simyo 4.31.2. De websiteproxy en websitecookies zijn verwijderd.
 
-1. `POST https://mijn.simyo.nl/auth/login` met `phoneNumber` en `password`.
-2. Een antwoord met `user.mfaStatus == PENDING_VERIFICATION` opent een apart
-   formulier voor de verificatiecode. Het beperkte sessietoken geeft nog
-   geen toegang tot de verbruiksgegevens.
-3. `POST /api/post?endpoint=securityVerifyOtp` met `rememberMe: true` en
-   `token: <zescijferige code>`, met **dezelfde eigen cookieopslag voor de websitesessie**.
-4. Het bevestigde token komt uit `result.token`. De client roept
-   `POST /auth/update-token` aan met dat token en `rememberMe: true` om de
-   websitesessie op de server bij te werken en de aanmelding te onthouden.
-5. Gegevens worden opgehaald via `GET /api/get?endpoint=prepaidOverview` en
-   `GET /api/get?endpoint=getAggregated`.
+- Basis: `https://appapi.simyo.nl/webapi/api`.
+- Aanmelden: `POST /v1/sessions` met telefoonnummer en wachtwoord.
+- Verificatie: `POST /v2/security.verifyOTP` met de code en `rememberMe: true`,
+  met het beperkte aanmeldtoken in `X-Session-Token`.
+- Gegevens: `GET /v1/overview/prepaid` en `POST /v2/usage.aggregated`.
+- Appheaders identificeren Android 4.31.2. Het openbare client-ID uit de app
+  is een app-identificatie, geen accountwachtwoord.
 
-Home Assistant bewaart alleen het bevestigde sessietoken en expliciet
-toegestane authenticatie- en routeringscookies bij de integratieconfiguratie.
-Cookies van een nog onbevestigde verificatie en eenmalige codes worden nooit
-opgeslagen. Er wordt geen browsersessie gekopieerd: deze cookies horen bij
-de eigen succesvolle aanmelding van de integratie.
+Het apparaat-ID blijft gelijk bij herladen, herstarten en heraanmelden.
+Alleen een volledig bevestigde appsessie wordt opgeslagen. Eenmalige codes
+of beperkte MFA-tokens worden nooit opgeslagen. Eventuele vervangende
+sessietokens uit gegevensantwoorden worden bewaard. Ruwe API-antwoorden
+worden niet als sensorattributen gepubliceerd.
 
-De eerste aanmelding en het aanvragen van de code blijven binnen dezelfde
-configuratieprocedure, ook bij het opnieuw invoeren van een onjuiste code.
-Een verlopen verificatie vereist een nieuwe aanmelding. Verzoeklimieten
-worden gemeld zonder automatisch nieuwe codes te versturen. De integratie
-vraagt Simyo met `rememberMe: true` om de aanmelding te onthouden.
-Tweestapsverificatie blijft ingeschakeld op het account.
+Bij een geweigerd token probeert de integratie eenmaal opnieuw aan te melden
+met dezelfde apparaatidentiteit en de opgeslagen inloggegevens. Mislukt dit
+of vraagt Simyo opnieuw MFA, dan blijft automatisch aanmelden geblokkeerd,
+ook na een herstart, tot een succesvolle handmatige aanmelding. De eerste
+herstelpoging kan dus een sms veroorzaken. Simyo bepaalt de geldigheidsduur;
+een onbeperkte sessie wordt niet gegarandeerd.
 
-Vanaf versie 0.2.3 wordt de onthoudfunctie aangevraagd bij een nieuwe
-aanmelding met verificatiecode. Een verlopen sessie wordt hierdoor niet
-opnieuw geldig: meld na installatie van de update nog eenmaal aan.
-Simyo bepaalt de geldigheidsduur; een sessie van maanden is niet gegarandeerd.
+### Overstappen vanaf een websiteversie
 
-Home Assistant hergebruikt de opgeslagen sessie na een herstart. Als Simyo
-de sessie laat verlopen en opnieuw om tweestapsverificatie vraagt, moet je
-opnieuw je wachtwoord en een code invoeren. De formulieren zijn beschikbaar
-in het Nederlands en Engels. Logboeken bevatten alleen vaste foutcategorieÃ«n
-en HTTP-statuscodes, nooit antwoordinhoud of authenticatiegegevens.
+Bestaande entiteiten en hun unieke ID's blijven behouden. Bij de eerste start
+worden oude websitecookies en het bijbehorende token niet als app-credentials
+gebruikt. De bestaande apparaatidentiteit blijft behouden. De integratie maakt
+een nieuwe appsessie en vraagt zo nodig eenmalig om verificatie. Daarna wordt
+het app-token bij herstarts hergebruikt.
 
-Vanaf versie 0.2.4 blijft de `mfa-uuid`-cookie voor het onthouden apparaat
-behouden wanneer de gegevenssessie verloopt. Alleen als die cookie aanwezig
-is, probeert de integratie eenmaal automatisch opnieuw aan te melden met de
-opgeslagen inloggegevens en vervolgens opnieuw gegevens op te halen.
-Bij succes worden de nieuwe sessiegegevens opgeslagen.
+### Controle
 
-Vraagt Simyo toch weer om tweestapsverificatie, of mislukt deze herstelpoging,
-dan wordt automatisch aanmelden geblokkeerd tot een succesvolle handmatige
-heraanmelding. Die blokkering blijft ook na herladen en herstarten bewaard.
-Hierdoor kunnen herhaalde pogingen niet steeds nieuwe codes aanvragen. De
-eerste automatische aanmeldpoging kan wel een code veroorzaken als Simyo het
-apparaat niet meer vertrouwt. Zonder apparaatcookie is er geen automatische
-aanmeldpoging. Accountbeveiliging wordt niet uitgeschakeld en de geldigheid
-van een Simyo-sessie wordt niet kunstmatig verlengd.
+De endpoints, headers en modellen zijn in de APK aangetroffen. Een lege
+live aanvraag naar het app-aanmeldendpoint gaf de verwachte validatiefout
+`missing phoneNumber`. Dit controleert de bereikbaarheid en het verzoekpad,
+maar vervangt geen succesvolle aanmelding met MFA en gegevensopvraging.
 
-Het oorspronkelijke hulpmiddel voor rechtstreeks aanmelden bij de app-API
-blijft beschikbaar voor diagnose. De integratie combineert die app-API niet
-meer met de authenticatie van de website.
-
-## Controle en beperkingen
-
-De bovenstaande verzoeken en antwoorden zijn onderzocht tijdens een
-succesvolle aanmelding in de browser. Automatische tests controleren de
-client en de configuratiestappen met nagebootste Home Assistant-interfaces,
-het afschermen van geheime gegevens, het hergebruik van tokens en het behoud
-van HTTP-cookies via een **lokale testserver**. Deze tests vervangen geen
-volledige praktijktest in Home Assistant.
-
-De gecorrigeerde aanmelding via de website is ook met een echt account
-getest: aanmelden met tweestapsverificatie, het ophalen van beltegoed en
-verbruik en het hergebruiken van de bevestigde sessie zijn geslaagd. In
-Home Assistant is het prepaidbeltegoed zichtbaar en kwam de koppeling na
-een herstart terug zonder nieuwe verificatiecode.
-
-Voer de tests uit met Python 3.12 of hoger:
+De lokale regressietests controleren de echte HTTP-verzoeken op een lokale
+server, OTP-isolatie, foutafhandeling, hergebruik van een app-token, een stabiel
+apparaat-ID, tokenvervanging en begrensd herstel. De app-route is op 5 november 2026 ook met een echt account getest:
+aanmelding met sms-verificatie, beltegoed en verbruik ophalen en hergebruik
+van dezelfde appsessie in een nieuwe client zijn geslaagd. Langdurige werking
+en herstarts in Home Assistant moeten afzonderlijk worden bevestigd. Eerdere succesvolle websitepraktijktests gelden niet als
+praktijktest van deze nieuwe route.
 
 ```sh
 python -m pip install aiohttp voluptuous
 python -m unittest discover -s tests -v
-```
-
-Test deze fork lokaal zonder Home Assistant te installeren:
-
-```sh
 python tools/verify_2fa.py
 ```
 
-Deze praktijktest vraagt lokaal om je inloggegevens en verificatiecode
-(beide verborgen), toont alleen of stappen slagen of mislukken en bewaart
-geen tokens of antwoorden. De test haalt gegevens op en herstelt de
-bevestigde websitesessie in een nieuwe client om hergebruik zonder een
-nieuwe verificatiecode te controleren.
+De interactieve praktijktest vraagt het wachtwoord en de code verborgen,
+haalt gegevens op en maakt daarna een nieuwe client met hetzelfde app-token
+en apparaat-ID. Een volledig aangemelde appsessie wordt bewaard in
+`apk/.analysis/simyo-session.json` (uitgesloten van Git), ook als uitlezen
+mislukt. Alleen een account-hash, apparaat-ID en sessietoken worden opgeslagen;
+geen wachtwoord of code. Houd dit bestand privé. Een volgende test probeert
+eerst deze sessie, zonder nieuw wachtwoord of sms-code. Logboeken tonen alleen vaste lokale foutcategorieën en statussen.
 
-Dit is een onofficiÃ«le integratie die afhankelijk is van niet-openbare
-Simyo-interfaces. De oorspronkelijke sensorimplementatie probeert gegevens
-op verwachte veldpaden te vinden en biedt de ruwe beltegoed- en
-verbruiksgegevens als entiteitsattributen aan. De koppeling van prepaidvelden
-aan sensoren kan nog aanpassing nodig hebben, ook als aanmelden lukt.
+Dit is een onofficiële integratie voor een niet-openbare interface.
+Onbekende verbruiksvelden blijven onbekend; er worden geen eenheden gegokt.
 
 ## Installatie
 
@@ -166,7 +129,7 @@ rechtstreeks naar de integratie.
 
 `python tools/probe_login.py` onderzoekt de oudere rechtstreekse
 app-aanmelding en toont de antwoordstructuur met afgeschermde waarden.
-Dit hulpmiddel voert de websiteverificatie niet uit. Gebruik
+Dit hulpmiddel voert de sms-verificatie niet uit. Gebruik
 `tools/verify_2fa.py` om de huidige aanmelding van deze fork te testen.
 
 ## Lokale logo's

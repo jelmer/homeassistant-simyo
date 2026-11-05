@@ -55,6 +55,7 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         client = Mock()
         client.phone_number = "0600000000"
         client.auto_reauth_blocked = True
+        client.session_token = None
         client.fetch_all = AsyncMock(
             side_effect=api.SimyoMfaRequired("verification required")
         )
@@ -64,12 +65,12 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
             await coordinator._async_update_data()
         data = hass.config_entries.async_update_entry.call_args.kwargs["data"]
         self.assertTrue(data["auto_reauth_blocked"])
-        self.assertEqual(data["web_session"], {"mfa-uuid": "remembered"})
+        self.assertNotIn("web_session", data)
         restored = api.SimyoClient(
             Mock(),
             "0600000000",
             "fake",
-            web_session=data["web_session"],
+            device_id="stable-device",
             auto_reauth_blocked=data["auto_reauth_blocked"],
         )
         restored.login = AsyncMock()
@@ -85,10 +86,6 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         client.phone_number = "0600000000"
         client.auto_reauth_blocked = False
         client.session_token = "new"
-        client.web_session = {
-            "mfa-uuid": "remembered",
-            "__Host-sessionKey": "new-cookie",
-        }
         client.fetch_all = AsyncMock(return_value={"balance": 7.5})
         hass = Mock()
         self.assertEqual(
@@ -97,4 +94,4 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         )
         data = hass.config_entries.async_update_entry.call_args.kwargs["data"]
         self.assertEqual(data["session_token"], "new")
-        self.assertEqual(data["web_session"]["__Host-sessionKey"], "new-cookie")
+        self.assertNotIn("web_session", data)

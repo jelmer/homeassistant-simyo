@@ -1,2 +1,5 @@
 __pycache__/
 *.py[cod]
+
+# Local app package and reverse-engineering tools; never publish these.
+/apk/

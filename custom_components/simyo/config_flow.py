@@ -21,12 +21,13 @@ from .api import (
     SimyoRateLimited,
 )
 from .const import (
+    AUTH_TRANSPORT,
+    CONF_AUTH_TRANSPORT,
     CONF_AUTO_REAUTH_BLOCKED,
     CONF_DEVICE_ID,
     CONF_PHONE_NUMBER,
     CONF_SESSION_TOKEN,
     CONF_VERIFICATION_CODE,
-    CONF_WEB_SESSION,
     DOMAIN,
 )
 
@@ -85,20 +86,16 @@ class SimyoConfigFlow(ConfigFlow, domain=DOMAIN):
         return error
 
     async def _finish(self) -> ConfigFlowResult:
-        if (
-            not self._client
-            or not self._client.session_token
-            or not self._pending_data
-            or not self._client.web_session.get("__Host-sessionKey")
-        ):
+        if not self._client or not self._client.session_token or not self._pending_data:
             return self.async_abort(reason="mfa_expired")
         data = {
             **self._pending_data,
             CONF_DEVICE_ID: self._device_id,
             CONF_SESSION_TOKEN: self._client.session_token,
-            CONF_WEB_SESSION: self._client.web_session,
+            CONF_AUTH_TRANSPORT: AUTH_TRANSPORT,
             CONF_AUTO_REAUTH_BLOCKED: False,
         }
+        data.pop("web_session", None)
         self._pending_data = None
         self._client = None
         if self.context.get("source") == "reauth":

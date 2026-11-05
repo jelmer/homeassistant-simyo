@@ -1,11 +1,4 @@
-"""Sensors for the Simyo integration.
-
-The structure of the Simyo balance/usage payloads is not formally documented,
-so the sensor entities defined here probe a number of plausible field paths
-and surface whichever one is present. Anything else from the response is
-exposed under ``extra_state_attributes`` so users can build template sensors
-for fields that don't yet have a first-class entity.
-"""
+"""Sensors for verified aggregate app data; raw account payloads stay private."""
 
 from __future__ import annotations
 
@@ -69,6 +62,7 @@ SENSORS: tuple[SimyoSensorDescription, ...] = (
             d,
             (
                 ("result", "balance"),
+                ("result", "creditBalance", "amount"),
                 ("balance",),
                 ("result", "credit"),
                 ("credit",),
@@ -229,8 +223,5 @@ class SimyoSensor(CoordinatorEntity[SimyoCoordinator], SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Expose the raw section payload to make unmapped fields accessible."""
-        section = self.coordinator.data.get(self.entity_description.section)
-        if not isinstance(section, dict):
-            return None
-        return {"raw": section}
+        """Never publish account details or tokens from an app response."""
+        return None

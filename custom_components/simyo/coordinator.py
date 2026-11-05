@@ -14,7 +14,6 @@ from .api import SimyoApiError, SimyoAuthError, SimyoClient, SimyoRateLimited
 from .const import (
     CONF_AUTO_REAUTH_BLOCKED,
     CONF_SESSION_TOKEN,
-    CONF_WEB_SESSION,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
@@ -40,18 +39,6 @@ class SimyoCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         try:
             data = await self.client.fetch_all()
-            if self.client.session_token and (
-                self.client.session_token != self.entry.data.get(CONF_SESSION_TOKEN)
-                or self.client.web_session != self.entry.data.get(CONF_WEB_SESSION)
-            ):
-                self.hass.config_entries.async_update_entry(
-                    self.entry,
-                    data={
-                        **self.entry.data,
-                        CONF_SESSION_TOKEN: self.client.session_token,
-                        CONF_WEB_SESSION: self.client.web_session,
-                    },
-                )
             return data
         except SimyoAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
@@ -60,13 +47,10 @@ class SimyoCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except SimyoRateLimited as err:
             raise UpdateFailed(str(err)) from err
         finally:
-            if self.client.auto_reauth_blocked != bool(
-                self.entry.data.get(CONF_AUTO_REAUTH_BLOCKED)
-            ):
-                self.hass.config_entries.async_update_entry(
-                    self.entry,
-                    data={
-                        **self.entry.data,
-                        CONF_AUTO_REAUTH_BLOCKED: self.client.auto_reauth_blocked,
-                    },
-                )
+            data = dict(self.entry.data)
+            data.pop("web_session", None)
+            data[CONF_AUTO_REAUTH_BLOCKED] = self.client.auto_reauth_blocked
+            # A pending MFA token is never persisted as a usable app session.
+            data[CONF_SESSION_TOKEN] = self.client.session_token
+            if data != self.entry.data:
+                self.hass.config_entries.async_update_entry(self.entry, data=data)

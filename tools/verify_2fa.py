@@ -1,4 +1,4 @@
-"""Interactive live check of this fork; never prints or saves auth values.
+"""Interactive app check; caches only completed sessions in an ignored file.
 
 Requires aiohttp. Run from an interactive terminal; credentials/code are hidden.
 No account settings are changed. MFA requests use Simyo's remember-device option.
@@ -12,6 +12,9 @@ import types
 from pathlib import Path
 
 import aiohttp
+from session_store import clear_session, load_session, save_session
+
+SESSION_PATH = Path(__file__).resolve().parents[1] / "apk/.analysis/simyo-session.json"
 
 package = types.ModuleType("simyo_live_check")
 package.__path__ = [
@@ -25,50 +28,87 @@ api = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(api)
 
 
-async def check(phone, password):
+async def check(phone, password=None):
     async with aiohttp.ClientSession() as session:
-        client = api.SimyoClient(session, phone, password)
+        saved = load_session(SESSION_PATH, phone)
+        client = api.SimyoClient(
+            session,
+            phone,
+            "",
+            device_id=saved["device_id"] if saved else None,
+            session_token=saved["session_token"] if saved else None,
+        )
+        data = None
         try:
-            try:
-                await client.login()
-            except api.SimyoMfaRequired:
-                print("Simyo vraagt om 2FA. Gebruik de zojuist ontvangen code.")
-                code = getpass.getpass("Verificatiecode (verborgen): ")
-                await client.verify_code(code.strip())
-                del code
-            print("Aanmelden geslaagd; bevestigde sessie ontvangen.")
-            data = await client.fetch_all()
+            if saved:
+                print("Opgeslagen appsessie hergebruiken...")
+                try:
+                    data = await client.fetch_all()
+                except api.SimyoAuthError:
+                    clear_session(SESSION_PATH)
+                    saved = None
+                    print(
+                        "Simyo heeft de opgeslagen sessie afgewezen; opnieuw aanmelden is nodig."
+                    )
+            if not saved:
+                password = (
+                    password
+                    if password is not None
+                    else getpass.getpass("Mijn Simyo-wachtwoord (verborgen): ")
+                )
+                client = api.SimyoClient(
+                    session, phone, password, device_id=client.device_id
+                )
+                try:
+                    await client.login()
+                except api.SimyoMfaRequired:
+                    print("Simyo vraagt om 2FA. Gebruik de zojuist ontvangen code.")
+                    code = getpass.getpass("Verificatiecode (verborgen): ")
+                    await client.verify_code(code.strip())
+                    del code
+                # Save before reading: parsing/HTTP failures must not lose MFA.
+                save_session(SESSION_PATH, phone, client)
+                print(
+                    "Aangemelde appsessie lokaal opgeslagen; wachtwoord en code zijn niet opgeslagen."
+                )
+                data = await client.fetch_all()
+            save_session(SESSION_PATH, phone, client)
             balance = data.get("balance", {}).get("result", {}).get("balance")
             if not isinstance(balance, (int, float)) or isinstance(balance, bool):
                 raise api.SimyoApiError("prepaid_balance_value_missing")
             print("Ophalen van beltegoed en verbruik geslaagd.")
+            # An empty password proves this token works without a hidden login.
             restored = api.SimyoClient(
                 session,
                 phone,
-                password,
+                "",
+                device_id=client.device_id,
                 session_token=client.session_token,
-                web_session=client.web_session,
             )
             await restored.fetch_all()
+            save_session(SESSION_PATH, phone, restored)
             print(
-                "Hergebruik van de bevestigde websitesessie geslaagd (zonder nieuwe 2FA)."
+                "Hergebruik van de bevestigde appsessie geslaagd (zonder nieuwe 2FA)."
             )
+            return 0
         except api.SimyoApiError as error:
+            save_session(SESSION_PATH, phone, client)
             print(f"Aanvraag mislukt: {error.reason}; HTTP-status: {error.status}")
         except api.SimyoInvalidCode:
             print("Code geweigerd. Er is niet automatisch opnieuw geprobeerd.")
         except api.SimyoRateLimited:
             print("Te veel pogingen. Wacht voordat je het script opnieuw start.")
         except api.SimyoDataAuthError as error:
+            clear_session(SESSION_PATH)
             print(
-                f"Inloggen/2FA geslaagd, maar gegevenssessie geweigerd: {error.endpoint}; HTTP-status: {error.status}"
-            )
-        except api.SimyoMfaRequired:
-            print(
-                "Gegevens ophalen vraagt onverwacht opnieuw om 2FA. Er is geen nieuwe code ingediend."
+                f"Gegevenssessie geweigerd: {error.endpoint}; HTTP-status: {error.status}"
             )
         except api.SimyoAuthError:
+            clear_session(SESSION_PATH)
             print("Inloggegevens geweigerd of verificatiesessie verlopen.")
+        if SESSION_PATH.exists():
+            print("De appsessie blijft bewaard voor een volgende poging.")
+        return 1
 
 
 if __name__ == "__main__":
@@ -77,9 +117,8 @@ if __name__ == "__main__":
             "Start dit script in een interactieve terminal; pipe geen inloggegevens."
         )
     phone = input("Telefoonnummer (06xxxxxxxx): ").strip()
-    password = getpass.getpass("Mijn Simyo-wachtwoord (verborgen): ")
     try:
-        asyncio.run(check(phone, password))
+        raise SystemExit(asyncio.run(check(phone)))
     except KeyboardInterrupt:
         print("Geannuleerd.")
     except Exception as error:  # noqa: BLE001 -- redact any unexpected HTTP data

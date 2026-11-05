@@ -67,7 +67,6 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.client = Mock(
             session_token=None,
-            web_session={"__Host-sessionKey": "fake-completed-cookie"},
         )
         self.client.login = AsyncMock(side_effect=api.SimyoMfaRequired("required"))
         self.client.verify_code = AsyncMock(side_effect=self.verify_success)

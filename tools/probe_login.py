@@ -3,13 +3,14 @@
 Run locally in an interactive terminal. Uses only Python's standard library.
 Does not submit an OTP, bypass MFA, or save the login response.
 """
+
 from __future__ import annotations
 
 import getpass
 import json
-from pathlib import Path
 import runpy
 import sys
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
@@ -36,24 +37,36 @@ def response_shape(value, key="", depth=0):
 
 def main():
     if not sys.stdin.isatty():
-        raise SystemExit("Run this script in an interactive terminal; do not pipe credentials.")
-    constants = runpy.run_path(str(Path(__file__).resolve().parents[1] / "custom_components/simyo/const.py"))
+        raise SystemExit(
+            "Run this script in an interactive terminal; do not pipe credentials."
+        )
+    constants = runpy.run_path(
+        str(Path(__file__).resolve().parents[1] / "custom_components/simyo/const.py")
+    )
     print("Signs in once to the official Simyo app API. No OTP will be submitted.")
     phone = input("Simyo phone number (06xxxxxxxx): ").strip()
-    if len(phone) != 10 or not phone.startswith("06") or not phone.isascii() or not phone.isdigit():
+    if (
+        len(phone) != 10
+        or not phone.startswith("06")
+        or not phone.isascii()
+        or not phone.isdigit()
+    ):
         raise SystemExit("Enter a Dutch number as 06xxxxxxxx.")
     password = getpass.getpass("Mijn Simyo password (hidden): ")
     headers = {
-        "Content-Type": "application/json", "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Client-Token": constants["CLIENT_TOKEN"],
         "X-Client-Platform": constants["CLIENT_PLATFORM"],
         "X-Client-Version": constants["CLIENT_VERSION"],
         "User-Agent": constants["USER_AGENT"],
         "X-Device-ID": str(uuid4()),
     }
     request = Request(
-        constants["API_BASE"] + "/sessions",
+        constants["API_BASE"] + "/v1/sessions",
         data=json.dumps({"phoneNumber": phone, "password": password}).encode(),
-        headers=headers, method="POST",
+        headers=headers,
+        method="POST",
     )
     try:
         try:
@@ -75,7 +88,9 @@ def main():
         print("REDACTED RESPONSE STRUCTURE (no password, code or token values):")
         print(json.dumps(shape, indent=2))
     except (URLError, TimeoutError, OSError):
-        print("Transport failure. Details omitted to avoid exposing account information.")
+        print(
+            "Transport failure. Details omitted to avoid exposing account information."
+        )
 
 
 if __name__ == "__main__":
