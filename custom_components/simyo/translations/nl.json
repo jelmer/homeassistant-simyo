@@ -1,0 +1,68 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbinden met Simyo",
+        "description": "Vul je Mijn Simyo-telefoonnummer en wachtwoord in. Als 2FA actief is, volgt een aparte stap voor de verificatiecode.",
+        "data": {
+          "phone_number": "Telefoonnummer",
+          "password": "Wachtwoord"
+        }
+      },
+      "mfa": {
+        "title": "Simyo-inlog verifiëren",
+        "description": "Vul de zescijferige code in die Simyo naar je ingestelde sms- of e-mailadres heeft gestuurd. De code wordt eenmalig gebruikt en niet opgeslagen. Is de sessie verlopen? Begin de koppeling dan opnieuw.",
+        "data": {
+          "verification_code": "Verificatiecode"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Opnieuw aanmelden bij Simyo",
+        "description": "Vul het wachtwoord voor {phone_number} in. Indien nodig volgt de 2FA-code.",
+        "data": {
+          "password": "Wachtwoord"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Simyo heeft de inloggegevens geweigerd.",
+      "cannot_connect": "De Simyo-aanvraag is mislukt. Controleer de logs voor de foutcategorie en HTTP-status.",
+      "unexpected_response": "Simyo gaf een onverwacht antwoord. Controleer of er een update voor de integratie is.",
+      "client_update_required": "Simyo accepteert deze clientversie niet meer. Werk de integratie bij.",
+      "invalid_code": "De verificatiecode is ongeldig. Controleer de laatste code en probeer opnieuw.",
+      "rate_limited": "Simyo beperkt tijdelijk het aantal inlogpogingen. Wacht voordat je opnieuw probeert."
+    },
+    "abort": {
+      "already_configured": "Dit telefoonnummer is al ingesteld.",
+      "mfa_expired": "De verificatiesessie is verlopen. Start het instellen of aanmelden opnieuw om een nieuwe code aan te vragen."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "balance": {
+        "name": "Beltegoed"
+      },
+      "data_used": {
+        "name": "Dataverbruik"
+      },
+      "data_remaining": {
+        "name": "Resterende data"
+      },
+      "voice_used": {
+        "name": "Verbruikte belminuten"
+      },
+      "voice_remaining": {
+        "name": "Resterende belminuten"
+      },
+      "sms_used": {
+        "name": "Verbruikte sms'jes"
+      },
+      "sms_remaining": {
+        "name": "Resterende sms'jes"
+      },
+      "out_of_bundle_costs": {
+        "name": "Kosten buiten de bundel"
+      }
+    }
+  }
+}

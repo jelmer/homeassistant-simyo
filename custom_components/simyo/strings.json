@@ -15,26 +15,54 @@
         "data": {
           "password": "Password"
         }
+      },
+      "mfa": {
+        "title": "Verify Simyo login",
+        "description": "Enter the six-digit code Simyo sent to your configured SMS or email address. The code is used once and is not stored. If the session has expired, restart setup.",
+        "data": {
+          "verification_code": "Verification code"
+        }
       }
     },
     "error": {
       "invalid_auth": "Invalid phone number or password.",
-      "cannot_connect": "Failed to connect to Simyo."
+      "cannot_connect": "Could not complete the Simyo login. Check the integration logs for the failure category and HTTP status.",
+      "client_update_required": "Simyo no longer accepts this app version. Update the integration.",
+      "unexpected_response": "Simyo returned an unsupported login response. Additional verification may be required; check the integration logs for the HTTP status.",
+      "invalid_code": "The verification code is invalid. Check the latest code and try again.",
+      "rate_limited": "Simyo has temporarily limited authentication attempts. Wait before trying again; do not repeatedly request codes."
     },
     "abort": {
-      "already_configured": "This phone number is already configured."
+      "already_configured": "This phone number is already configured.",
+      "mfa_expired": "The verification session has expired. Restart setup or reauthentication to request a new code."
     }
   },
   "entity": {
     "sensor": {
-      "balance": { "name": "Balance" },
-      "data_used": { "name": "Data used" },
-      "data_remaining": { "name": "Data remaining" },
-      "voice_used": { "name": "Voice minutes used" },
-      "voice_remaining": { "name": "Voice minutes remaining" },
-      "sms_used": { "name": "SMS used" },
-      "sms_remaining": { "name": "SMS remaining" },
-      "out_of_bundle_costs": { "name": "Out-of-bundle costs" }
+      "balance": {
+        "name": "Balance"
+      },
+      "data_used": {
+        "name": "Data used"
+      },
+      "data_remaining": {
+        "name": "Data remaining"
+      },
+      "voice_used": {
+        "name": "Voice minutes used"
+      },
+      "voice_remaining": {
+        "name": "Voice minutes remaining"
+      },
+      "sms_used": {
+        "name": "SMS used"
+      },
+      "sms_remaining": {
+        "name": "SMS remaining"
+      },
+      "out_of_bundle_costs": {
+        "name": "Out-of-bundle costs"
+      }
     }
   }
 }
